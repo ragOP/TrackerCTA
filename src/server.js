@@ -4,6 +4,9 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { randomUUID } = require('crypto');
+
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
 const { connectDb, getDbStatus, recordClick, listClicks, summaryStats, listSites } = require('./db');
 
 const PORT = process.env.PORT || 3847;
