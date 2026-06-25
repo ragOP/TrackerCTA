@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TrackerCTA Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --card: #1a2332;
+      --border: #2d3a4f;
+      --text: #e8edf5;
+      --muted: #8b9cb3;
+      --accent: #1f4cdc;
+      --green: #22c55e;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 24px 16px 48px;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    h1 { font-size: 1.5rem; margin-bottom: 4px; }
+    .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 24px; }
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+      align-items: end;
+    }
+    label { display: flex; flex-direction: column; gap: 4px; font-size: 0.75rem; color: var(--muted); }
+    input, select, button {
+      font: inherit;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 8px 12px;
+    }
+    button {
+      background: var(--accent);
+      border-color: var(--accent);
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button.secondary { background: var(--card); border-color: var(--border); }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .stat {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .stat b { display: block; font-size: 1.6rem; color: var(--green); }
+    .stat span { font-size: 0.8rem; color: var(--muted); }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+    @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      overflow: auto;
+    }
+    .card h2 { font-size: 0.95rem; margin-bottom: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; }
+    .pill {
+      display: inline-block;
+      background: rgba(31,76,220,.2);
+      color: #93b4ff;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-family: ui-monospace, monospace;
+    }
+    .empty { color: var(--muted); font-size: 0.85rem; padding: 12px 0; }
+    .refresh { margin-left: auto; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>TrackerCTA</h1>
+    <p class="sub">Central CTA click analytics — any site, any path, per-button breakdown.</p>
+    <p class="sub" style="color:#93b4ff;margin-top:-12px;margin-bottom:20px">
+      Local test: open <a href="/pages/altv2safe.html" style="color:#93b4ff">/pages/altv2safe.html</a> or
+      <a href="/pages/altv2opt.html" style="color:#93b4ff">/pages/altv2opt.html</a> (do not double-click the file — use these URLs).
+    </p>
+
+    <div class="filters">
+      <label>Site
+        <input id="f-site" placeholder="verbraucherfokus-test.de">
+      </label>
+      <label>Page
+        <input id="f-page" placeholder="altv2opt.html">
+      </label>
+      <label>From
+        <input id="f-from" type="date">
+      </label>
+      <label>To
+        <input id="f-to" type="date">
+      </label>
+      <button type="button" id="btn-apply">Apply</button>
+      <button type="button" class="secondary" id="btn-clear">Clear</button>
+      <button type="button" class="secondary refresh" id="btn-refresh">Refresh</button>
+    </div>
+
+    <div class="stats" id="stats"></div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Clicks by page</h2>
+        <div id="by-page"></div>
+      </div>
+      <div class="card">
+        <h2>Clicks by CTA</h2>
+        <div id="by-cta"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Recent clicks</h2>
+      <div id="recent"></div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function qs() {
+      const p = new URLSearchParams();
+      const site = $('f-site').value.trim();
+      const page = $('f-page').value.trim();
+      const from = $('f-from').value;
+      const to = $('f-to').value;
+      if (site) p.set('site', site);
+      if (page) p.set('page', page);
+      if (from) p.set('from', new Date(from).toISOString());
+      if (to) {
+        const end = new Date(to);
+        end.setHours(23, 59, 59, 999);
+        p.set('to', end.toISOString());
+      }
+      return p.toString();
+    }
+
+    function table(headers, rows, emptyMsg) {
+      if (!rows.length) return '<p class="empty">' + emptyMsg + '</p>';
+      let html = '<table><thead><tr>';
+      headers.forEach(h => { html += '<th>' + h + '</th>'; });
+      html += '</tr></thead><tbody>';
+      rows.forEach(r => {
+        html += '<tr>';
+        r.forEach(c => { html += '<td>' + c + '</td>'; });
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+      return html;
+    }
+
+    function fmtTime(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleString();
+    }
+
+    async function load() {
+      const q = qs();
+      const [summary, clicks] = await Promise.all([
+        fetch('/api/stats/summary?' + q).then(r => r.json()),
+        fetch('/api/clicks?' + q + '&limit=50').then(r => r.json()),
+      ]);
+
+      $('stats').innerHTML = [
+        ['Total clicks', summary.total],
+        ['Unique sessions', summary.uniqueSessions],
+        ['Unique visitors', summary.uniqueVisitors],
+        ['CTA buttons tracked', summary.byCta.length],
+      ].map(([label, val]) =>
+        '<div class="stat"><b>' + (val ?? 0) + '</b><span>' + label + '</span></div>'
+      ).join('');
+
+      $('by-page').innerHTML = table(
+        ['Site', 'Page', 'Clicks', 'Sessions', 'Visitors'],
+        summary.byPage.map(r => [r.site, r.page, r.clicks, r.sessions, r.visitors]),
+        'No page data yet.'
+      );
+
+      $('by-cta').innerHTML = table(
+        ['CTA ID', 'Label', 'Page', 'Clicks', 'Sessions'],
+        summary.byCta.map(r => [
+          '<span class="pill">' + r.cta_id + '</span>',
+          (r.cta_label || '—').slice(0, 40),
+          r.page,
+          r.clicks,
+          r.sessions,
+        ]),
+        'No CTA clicks yet.'
+      );
+
+      $('recent').innerHTML = table(
+        ['Time', 'Site / Page', 'CTA', 'Label', 'Session'],
+        clicks.rows.map(r => [
+          fmtTime(r.clicked_at),
+          r.site + '<br><small>' + r.page + '</small>',
+          '<span class="pill">' + r.cta_id + '</span>',
+          (r.cta_label || '—').slice(0, 50),
+          (r.session_id || '—').slice(0, 12) + '…',
+        ]),
+        'No clicks recorded yet. Open a tracked page and click a CTA.'
+      );
+    }
+
+    $('btn-apply').addEventListener('click', load);
+    $('btn-refresh').addEventListener('click', load);
+    $('btn-clear').addEventListener('click', () => {
+      $('f-site').value = '';
+      $('f-page').value = '';
+      $('f-from').value = '';
+      $('f-to').value = '';
+      load();
+    });
+
+    load();
+    setInterval(load, 15000);
+  </script>
+</body>
+</html>

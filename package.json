@@ -1,0 +1,18 @@
+{
+  "name": "tracker-cta",
+  "version": "1.0.0",
+  "description": "Centralized CTA click tracking for any website and path",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  }
+}
