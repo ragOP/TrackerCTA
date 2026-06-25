@@ -63,6 +63,8 @@
     .stat b { display: block; font-size: 1.6rem; color: var(--green); }
     .stat span { font-size: 0.8rem; color: var(--muted); }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+    @media (max-width: 1000px) { .grid-3 { grid-template-columns: 1fr; } }
     @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
     .card {
       background: var(--card);
@@ -104,6 +106,9 @@
       <label>Page
         <input id="f-page" placeholder="altv2opt.html">
       </label>
+      <label>Country
+        <input id="f-country" placeholder="DE" maxlength="2" style="width:70px;text-transform:uppercase">
+      </label>
       <label>From
         <input id="f-from" type="date">
       </label>
@@ -117,14 +122,25 @@
 
     <div class="stats" id="stats"></div>
 
-    <div class="grid">
+    <div class="grid-3">
       <div class="card">
-        <h2>Clicks by page</h2>
-        <div id="by-page"></div>
+        <h2>Clicks by country</h2>
+        <div id="by-country"></div>
+      </div>
+      <div class="card">
+        <h2>Clicks by city</h2>
+        <div id="by-city"></div>
       </div>
       <div class="card">
         <h2>Clicks by CTA</h2>
         <div id="by-cta"></div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Clicks by page</h2>
+        <div id="by-page"></div>
       </div>
     </div>
 
@@ -141,10 +157,12 @@
       const p = new URLSearchParams();
       const site = $('f-site').value.trim();
       const page = $('f-page').value.trim();
+      const country = $('f-country').value.trim().toUpperCase();
       const from = $('f-from').value;
       const to = $('f-to').value;
       if (site) p.set('site', site);
       if (page) p.set('page', page);
+      if (country) p.set('country', country);
       if (from) p.set('from', new Date(from).toISOString());
       if (to) {
         const end = new Date(to);
@@ -173,6 +191,14 @@
       return new Date(iso).toLocaleString();
     }
 
+    function fmtLocation(r) {
+      if (r.city && r.country_code) return r.city + ', ' + r.country_code;
+      if (r.city) return r.city;
+      if (r.country) return r.country;
+      if (r.country_code) return r.country_code;
+      return '—';
+    }
+
     async function load() {
       const q = qs();
       const [summary, clicks] = await Promise.all([
@@ -195,6 +221,27 @@
         'No page data yet.'
       );
 
+      $('by-country').innerHTML = table(
+        ['Country', 'Code', 'Clicks', 'Sessions'],
+        summary.byCountry.map(r => [
+          r.country || '—',
+          r.country_code || '—',
+          r.clicks,
+          r.sessions,
+        ]),
+        'No country data yet.'
+      );
+
+      $('by-city').innerHTML = table(
+        ['City', 'Country', 'Clicks'],
+        summary.byCity.map(r => [
+          r.city || '—',
+          (r.country || r.country_code || '—'),
+          r.clicks,
+        ]),
+        'No city data yet.'
+      );
+
       $('by-cta').innerHTML = table(
         ['CTA ID', 'Label', 'Page', 'Clicks', 'Sessions'],
         summary.byCta.map(r => [
@@ -208,13 +255,13 @@
       );
 
       $('recent').innerHTML = table(
-        ['Time', 'Site / Page', 'CTA', 'Label', 'Session'],
+        ['Time', 'Location', 'Site / Page', 'CTA', 'Label'],
         clicks.rows.map(r => [
           fmtTime(r.clicked_at),
+          fmtLocation(r) + (r.timezone ? '<br><small>' + r.timezone + '</small>' : ''),
           r.site + '<br><small>' + r.page + '</small>',
           '<span class="pill">' + r.cta_id + '</span>',
           (r.cta_label || '—').slice(0, 50),
-          (r.session_id || '—').slice(0, 12) + '…',
         ]),
         'No clicks recorded yet. Open a tracked page and click a CTA.'
       );
@@ -225,6 +272,7 @@
     $('btn-clear').addEventListener('click', () => {
       $('f-site').value = '';
       $('f-page').value = '';
+      $('f-country').value = '';
       $('f-from').value = '';
       $('f-to').value = '';
       load();

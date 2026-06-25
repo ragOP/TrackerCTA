@@ -48,6 +48,14 @@
     }
   }
 
+  function getTimezone() {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   function getUtm() {
     var params = new URLSearchParams(window.location.search);
     return {
@@ -148,6 +156,7 @@
       utmContent: utm.utmContent,
       utmTerm: utm.utmTerm,
       queryString: utm.queryString,
+      timezone: getTimezone(),
     };
 
     send(payload);

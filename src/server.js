@@ -8,6 +8,7 @@ const { randomUUID } = require('crypto');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const { connectDb, getDbStatus, recordClick, listClicks, summaryStats, listSites } = require('./db');
+const { lookupGeo } = require('./geo');
 
 const PORT = process.env.PORT || 3847;
 const app = express();
@@ -33,6 +34,7 @@ function parseFilters(query) {
     site: query.site || undefined,
     page: query.page || undefined,
     ctaId: query.ctaId || undefined,
+    country: query.country || undefined,
     from: query.from || undefined,
     to: query.to || undefined,
     limit: Math.min(parseInt(query.limit, 10) || 100, 500),
@@ -50,6 +52,7 @@ function buildClickRow(body, req) {
   }
 
   const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+  const geo = lookupGeo(ip);
 
   return {
     id: randomUUID(),
@@ -78,6 +81,11 @@ function buildClickRow(body, req) {
     utmTerm: body.utmTerm || null,
     queryString: body.queryString || null,
     ipHash: hashIp(ip),
+    country: geo.country,
+    countryCode: geo.countryCode,
+    city: geo.city,
+    region: geo.region,
+    timezone: body.timezone || null,
   };
 }
 
@@ -156,8 +164,8 @@ app.get('/api/clicks', async (req, res) => {
 
 app.get('/api/stats/summary', async (req, res) => {
   try {
-    const { site, page, from, to } = parseFilters(req.query);
-    res.json(await summaryStats({ site, page, from, to }));
+    const { site, page, country, from, to } = parseFilters(req.query);
+    res.json(await summaryStats({ site, page, country, from, to }));
   } catch (err) {
     console.error('summary error', err);
     res.status(500).json({ error: 'failed to load stats' });

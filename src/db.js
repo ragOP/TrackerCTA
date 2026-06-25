@@ -34,15 +34,21 @@ function mapRowToDoc(row) {
     utm_term: row.utmTerm ?? null,
     query_string: row.queryString ?? null,
     ip_hash: row.ipHash ?? null,
+    country: row.country ?? null,
+    country_code: row.countryCode ?? null,
+    city: row.city ?? null,
+    region: row.region ?? null,
+    timezone: row.timezone ?? null,
     created_at: new Date(),
   };
 }
 
-function buildMatch({ site, page, ctaId, from, to } = {}) {
+function buildMatch({ site, page, ctaId, country, from, to } = {}) {
   const match = {};
   if (site) match.site = site;
   if (page) match.page = page;
   if (ctaId) match.cta_id = ctaId;
+  if (country) match.country_code = country.toUpperCase();
   if (from || to) {
     match.clicked_at = {};
     if (from) match.clicked_at.$gte = from;
@@ -65,6 +71,8 @@ async function connectDb() {
   await collection.createIndex({ cta_id: 1 });
   await collection.createIndex({ clicked_at: -1 });
   await collection.createIndex({ session_id: 1 });
+  await collection.createIndex({ country_code: 1 });
+  await collection.createIndex({ city: 1 });
   await collection.createIndex({ id: 1 }, { unique: true });
 
   console.log(`MongoDB connected: ${DB_NAME}.${COLLECTION}`);
@@ -88,8 +96,8 @@ async function recordClick(row) {
   return row.id;
 }
 
-async function listClicks({ site, page, ctaId, from, to, limit = 100, offset = 0 } = {}) {
-  const filter = buildMatch({ site, page, ctaId, from, to });
+async function listClicks({ site, page, ctaId, country, from, to, limit = 100, offset = 0 } = {}) {
+  const filter = buildMatch({ site, page, ctaId, country, from, to });
   const [total, rows] = await Promise.all([
     collection.countDocuments(filter),
     collection
@@ -102,10 +110,10 @@ async function listClicks({ site, page, ctaId, from, to, limit = 100, offset = 0
   return { total, rows };
 }
 
-async function summaryStats({ site, page, from, to } = {}) {
-  const match = buildMatch({ site, page, from, to });
+async function summaryStats({ site, page, country, from, to } = {}) {
+  const match = buildMatch({ site, page, country, from, to });
 
-  const [totals, byPage, byCta, timeline] = await Promise.all([
+  const [totals, byPage, byCta, byCountry, byCity, timeline] = await Promise.all([
     collection.aggregate([
       { $match: match },
       {
@@ -190,6 +198,51 @@ async function summaryStats({ site, page, from, to } = {}) {
     ]).toArray(),
 
     collection.aggregate([
+      { $match: { ...match, country_code: { $ne: null } } },
+      {
+        $group: {
+          _id: { country_code: '$country_code', country: '$country' },
+          clicks: { $sum: 1 },
+          sessions: { $addToSet: '$session_id' },
+        },
+      },
+      {
+        $project: {
+          country_code: '$_id.country_code',
+          country: '$_id.country',
+          clicks: 1,
+          sessions: {
+            $size: {
+              $filter: { input: '$sessions', as: 's', cond: { $and: [{ $ne: ['$$s', null] }, { $ne: ['$$s', ''] }] } },
+            },
+          },
+        },
+      },
+      { $sort: { clicks: -1 } },
+    ]).toArray(),
+
+    collection.aggregate([
+      { $match: { ...match, city: { $ne: null } } },
+      {
+        $group: {
+          _id: { city: '$city', country_code: '$country_code', country: '$country' },
+          clicks: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          city: '$_id.city',
+          country_code: '$_id.country_code',
+          country: '$_id.country',
+          clicks: 1,
+          _id: 0,
+        },
+      },
+      { $sort: { clicks: -1 } },
+      { $limit: 20 },
+    ]).toArray(),
+
+    collection.aggregate([
       { $match: match },
       {
         $group: {
@@ -210,6 +263,8 @@ async function summaryStats({ site, page, from, to } = {}) {
     uniqueVisitors: t.uniqueVisitors,
     byPage,
     byCta,
+    byCountry,
+    byCity,
     timeline,
   };
 }
