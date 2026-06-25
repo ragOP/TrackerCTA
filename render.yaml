@@ -12,9 +12,7 @@ services:
         value: 22.19.0
       - key: IP_SALT
         generateValue: true
-      - key: DATA_DIR
-        value: /opt/render/project/src/data
-    disk:
-      name: tracker-cta-data
-      mountPath: /opt/render/project/src/data
-      sizeGB: 1
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DB
+        value: trackercta

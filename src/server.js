@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { randomUUID } = require('crypto');
-const { recordClick, listClicks, summaryStats, listSites } = require('./db');
+const { connectDb, getDbStatus, recordClick, listClicks, summaryStats, listSites } = require('./db');
 
 const PORT = process.env.PORT || 3847;
 const app = express();
@@ -98,32 +98,18 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'TrackerCTA' });
 });
 
-app.get('/api/status', (_req, res) => {
-  const dataDir = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
-  const dbPath = path.join(dataDir, 'clicks.db');
-  let dbBytes = 0;
-  let dbExists = false;
-  try {
-    dbExists = fs.existsSync(dbPath);
-    if (dbExists) dbBytes = fs.statSync(dbPath).size;
-  } catch (_) {}
-
-  const summary = summaryStats();
-
+app.get('/api/status', async (_req, res) => {
+  const db = await getDbStatus();
   res.json({
-    ok: true,
-    dataDir,
-    dbPath,
-    dbExists,
-    dbBytes,
-    persistentDisk: !!process.env.DATA_DIR,
-    totalClicks: summary.total,
+    ok: db.connected,
+    storage: 'mongodb',
+    mongodb: db,
     nodeEnv: process.env.NODE_ENV || 'development',
     uptimeSec: Math.floor(process.uptime()),
   });
 });
 
-app.post('/api/track', (req, res) => {
+app.post('/api/track', async (req, res) => {
   const body = parseBody(req);
   const row = buildClickRow(body, req);
 
@@ -132,7 +118,7 @@ app.post('/api/track', (req, res) => {
   }
 
   try {
-    recordClick(row);
+    await recordClick(row);
     res.status(201).json({ ok: true, id: row.id });
   } catch (err) {
     console.error('track error', err);
@@ -140,12 +126,12 @@ app.post('/api/track', (req, res) => {
   }
 });
 
-app.get('/api/track/pixel', (req, res) => {
+app.get('/api/track/pixel', async (req, res) => {
   const row = buildClickRow(req.query, req);
 
   if (!row.error) {
     try {
-      recordClick(row);
+      await recordClick(row);
     } catch (err) {
       console.error('pixel track error', err);
     }
@@ -155,33 +141,52 @@ app.get('/api/track/pixel', (req, res) => {
   res.type('image/gif').send(PIXEL_GIF);
 });
 
-app.get('/api/clicks', (req, res) => {
-  const filters = parseFilters(req.query);
-  const result = listClicks(filters);
-  res.json(result);
+app.get('/api/clicks', async (req, res) => {
+  try {
+    const result = await listClicks(parseFilters(req.query));
+    res.json(result);
+  } catch (err) {
+    console.error('list clicks error', err);
+    res.status(500).json({ error: 'failed to load clicks' });
+  }
 });
 
-app.get('/api/stats/summary', (req, res) => {
-  const { site, page, from, to } = parseFilters(req.query);
-  res.json(summaryStats({ site, page, from, to }));
+app.get('/api/stats/summary', async (req, res) => {
+  try {
+    const { site, page, from, to } = parseFilters(req.query);
+    res.json(await summaryStats({ site, page, from, to }));
+  } catch (err) {
+    console.error('summary error', err);
+    res.status(500).json({ error: 'failed to load stats' });
+  }
 });
 
-app.get('/api/sites', (_req, res) => {
-  res.json(listSites());
+app.get('/api/sites', async (_req, res) => {
+  try {
+    res.json(await listSites());
+  } catch (err) {
+    console.error('sites error', err);
+    res.status(500).json({ error: 'failed to load sites' });
+  }
 });
 
 app.get('/', (_req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'dashboard.html'));
 });
 
-app.listen(PORT, () => {
-  const dataDir = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
-  console.log(`TrackerCTA running at http://localhost:${PORT}`);
-  console.log(`Dashboard: http://localhost:${PORT}/`);
-  console.log(`Database: ${path.join(dataDir, 'clicks.db')}`);
-  console.log(`Persistent disk: ${process.env.DATA_DIR ? 'yes (' + process.env.DATA_DIR + ')' : 'no — data lost on redeploy'}`);
-  if (fs.existsSync(pagesDir)) {
-    console.log(`Test pages: http://localhost:${PORT}/pages/altv2safe.html`);
-  }
-  console.log(`Tracker script: http://localhost:${PORT}/tracker.js`);
+async function start() {
+  await connectDb();
+  app.listen(PORT, () => {
+    console.log(`TrackerCTA running at http://localhost:${PORT}`);
+    console.log(`Dashboard: http://localhost:${PORT}/`);
+    if (fs.existsSync(pagesDir)) {
+      console.log(`Test pages: http://localhost:${PORT}/pages/altv2safe.html`);
+    }
+    console.log(`Tracker script: http://localhost:${PORT}/tracker.js`);
+  });
+}
+
+start().catch((err) => {
+  console.error('Failed to start:', err.message);
+  process.exit(1);
 });

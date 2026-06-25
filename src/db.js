@@ -1,148 +1,239 @@
-const fs = require('fs');
-const path = require('path');
-const Database = require('better-sqlite3');
+const { MongoClient } = require('mongodb');
 
-const dataDir = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
-if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+const DB_NAME = process.env.MONGODB_DB || 'trackercta';
+const COLLECTION = 'clicks';
 
-const dbPath = path.join(dataDir, 'clicks.db');
-const db = new Database(dbPath);
+let client;
+let collection;
 
-db.pragma('journal_mode = WAL');
+function mapRowToDoc(row) {
+  return {
+    id: row.id,
+    clicked_at: row.clickedAt,
+    site: row.site,
+    page: row.page,
+    page_url: row.pageUrl ?? null,
+    page_title: row.pageTitle ?? null,
+    cta_id: row.ctaId,
+    cta_label: row.ctaLabel ?? null,
+    cta_href: row.ctaHref ?? null,
+    cta_index: row.ctaIndex ?? null,
+    session_id: row.sessionId ?? null,
+    visitor_id: row.visitorId ?? null,
+    referrer: row.referrer ?? null,
+    user_agent: row.userAgent ?? null,
+    language: row.language ?? null,
+    screen_width: row.screenWidth ?? null,
+    screen_height: row.screenHeight ?? null,
+    viewport_width: row.viewportWidth ?? null,
+    viewport_height: row.viewportHeight ?? null,
+    utm_source: row.utmSource ?? null,
+    utm_medium: row.utmMedium ?? null,
+    utm_campaign: row.utmCampaign ?? null,
+    utm_content: row.utmContent ?? null,
+    utm_term: row.utmTerm ?? null,
+    query_string: row.queryString ?? null,
+    ip_hash: row.ipHash ?? null,
+    created_at: new Date(),
+  };
+}
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS clicks (
-    id TEXT PRIMARY KEY,
-    clicked_at TEXT NOT NULL,
-    site TEXT NOT NULL,
-    page TEXT NOT NULL,
-    page_url TEXT,
-    page_title TEXT,
-    cta_id TEXT NOT NULL,
-    cta_label TEXT,
-    cta_href TEXT,
-    cta_index INTEGER,
-    session_id TEXT,
-    visitor_id TEXT,
-    referrer TEXT,
-    user_agent TEXT,
-    language TEXT,
-    screen_width INTEGER,
-    screen_height INTEGER,
-    viewport_width INTEGER,
-    viewport_height INTEGER,
-    utm_source TEXT,
-    utm_medium TEXT,
-    utm_campaign TEXT,
-    utm_content TEXT,
-    utm_term TEXT,
-    query_string TEXT,
-    ip_hash TEXT,
-    created_at TEXT DEFAULT (datetime('now'))
-  );
+function buildMatch({ site, page, ctaId, from, to } = {}) {
+  const match = {};
+  if (site) match.site = site;
+  if (page) match.page = page;
+  if (ctaId) match.cta_id = ctaId;
+  if (from || to) {
+    match.clicked_at = {};
+    if (from) match.clicked_at.$gte = from;
+    if (to) match.clicked_at.$lte = to;
+  }
+  return match;
+}
 
-  CREATE INDEX IF NOT EXISTS idx_clicks_site_page ON clicks(site, page);
-  CREATE INDEX IF NOT EXISTS idx_clicks_cta_id ON clicks(cta_id);
-  CREATE INDEX IF NOT EXISTS idx_clicks_clicked_at ON clicks(clicked_at);
-  CREATE INDEX IF NOT EXISTS idx_clicks_session ON clicks(session_id);
-`);
+async function connectDb() {
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    throw new Error('MONGODB_URI environment variable is required');
+  }
 
-const insertClick = db.prepare(`
-  INSERT INTO clicks (
-    id, clicked_at, site, page, page_url, page_title,
-    cta_id, cta_label, cta_href, cta_index,
-    session_id, visitor_id, referrer, user_agent, language,
-    screen_width, screen_height, viewport_width, viewport_height,
-    utm_source, utm_medium, utm_campaign, utm_content, utm_term,
-    query_string, ip_hash
-  ) VALUES (
-    @id, @clickedAt, @site, @page, @pageUrl, @pageTitle,
-    @ctaId, @ctaLabel, @ctaHref, @ctaIndex,
-    @sessionId, @visitorId, @referrer, @userAgent, @language,
-    @screenWidth, @screenHeight, @viewportWidth, @viewportHeight,
-    @utmSource, @utmMedium, @utmCampaign, @utmContent, @utmTerm,
-    @queryString, @ipHash
-  )
-`);
+  client = new MongoClient(uri);
+  await client.connect();
+  collection = client.db(DB_NAME).collection(COLLECTION);
 
-function recordClick(row) {
-  insertClick.run(row);
+  await collection.createIndex({ site: 1, page: 1 });
+  await collection.createIndex({ cta_id: 1 });
+  await collection.createIndex({ clicked_at: -1 });
+  await collection.createIndex({ session_id: 1 });
+  await collection.createIndex({ id: 1 }, { unique: true });
+
+  console.log(`MongoDB connected: ${DB_NAME}.${COLLECTION}`);
+}
+
+async function getDbStatus() {
+  if (!collection) {
+    return { connected: false, error: 'not connected' };
+  }
+  try {
+    await client.db(DB_NAME).command({ ping: 1 });
+    const total = await collection.countDocuments();
+    return { connected: true, database: DB_NAME, collection: COLLECTION, totalClicks: total };
+  } catch (err) {
+    return { connected: false, error: err.message };
+  }
+}
+
+async function recordClick(row) {
+  await collection.insertOne(mapRowToDoc(row));
   return row.id;
 }
 
-function listClicks({ site, page, ctaId, from, to, limit = 100, offset = 0 } = {}) {
-  const where = [];
-  const params = {};
-
-  if (site) { where.push('site = @site'); params.site = site; }
-  if (page) { where.push('page = @page'); params.page = page; }
-  if (ctaId) { where.push('cta_id = @ctaId'); params.ctaId = ctaId; }
-  if (from) { where.push('clicked_at >= @from'); params.from = from; }
-  if (to) { where.push('clicked_at <= @to'); params.to = to; }
-
-  const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
-  const countStmt = db.prepare(`SELECT COUNT(*) AS total FROM clicks ${clause}`);
-  const rowsStmt = db.prepare(`
-    SELECT * FROM clicks ${clause}
-    ORDER BY clicked_at DESC
-    LIMIT @limit OFFSET @offset
-  `);
-
-  const total = countStmt.get(params).total;
-  const rows = rowsStmt.all({ ...params, limit, offset });
+async function listClicks({ site, page, ctaId, from, to, limit = 100, offset = 0 } = {}) {
+  const filter = buildMatch({ site, page, ctaId, from, to });
+  const [total, rows] = await Promise.all([
+    collection.countDocuments(filter),
+    collection
+      .find(filter, { projection: { _id: 0 } })
+      .sort({ clicked_at: -1 })
+      .skip(offset)
+      .limit(limit)
+      .toArray(),
+  ]);
   return { total, rows };
 }
 
-function summaryStats({ site, page, from, to } = {}) {
-  const where = [];
-  const params = {};
+async function summaryStats({ site, page, from, to } = {}) {
+  const match = buildMatch({ site, page, from, to });
 
-  if (site) { where.push('site = @site'); params.site = site; }
-  if (page) { where.push('page = @page'); params.page = page; }
-  if (from) { where.push('clicked_at >= @from'); params.from = from; }
-  if (to) { where.push('clicked_at <= @to'); params.to = to; }
+  const [totals, byPage, byCta, timeline] = await Promise.all([
+    collection.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          sessions: { $addToSet: '$session_id' },
+          visitors: { $addToSet: '$visitor_id' },
+        },
+      },
+      {
+        $project: {
+          total: 1,
+          uniqueSessions: {
+            $size: {
+              $filter: { input: '$sessions', as: 's', cond: { $and: [{ $ne: ['$$s', null] }, { $ne: ['$$s', ''] }] } },
+            },
+          },
+          uniqueVisitors: {
+            $size: {
+              $filter: { input: '$visitors', as: 'v', cond: { $and: [{ $ne: ['$$v', null] }, { $ne: ['$$v', ''] }] } },
+            },
+          },
+        },
+      },
+    ]).toArray(),
 
-  const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    collection.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: { site: '$site', page: '$page' },
+          clicks: { $sum: 1 },
+          sessions: { $addToSet: '$session_id' },
+          visitors: { $addToSet: '$visitor_id' },
+        },
+      },
+      {
+        $project: {
+          site: '$_id.site',
+          page: '$_id.page',
+          clicks: 1,
+          sessions: {
+            $size: {
+              $filter: { input: '$sessions', as: 's', cond: { $and: [{ $ne: ['$$s', null] }, { $ne: ['$$s', ''] }] } },
+            },
+          },
+          visitors: {
+            $size: {
+              $filter: { input: '$visitors', as: 'v', cond: { $and: [{ $ne: ['$$v', null] }, { $ne: ['$$v', ''] }] } },
+            },
+          },
+        },
+      },
+      { $sort: { clicks: -1 } },
+    ]).toArray(),
 
-  const total = db.prepare(`SELECT COUNT(*) AS n FROM clicks ${clause}`).get(params).n;
-  const uniqueSessions = db.prepare(`SELECT COUNT(DISTINCT session_id) AS n FROM clicks ${clause}`).get(params).n;
-  const uniqueVisitors = db.prepare(`SELECT COUNT(DISTINCT visitor_id) AS n FROM clicks ${clause}`).get(params).n;
+    collection.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: { site: '$site', page: '$page', cta_id: '$cta_id', cta_label: '$cta_label' },
+          clicks: { $sum: 1 },
+          sessions: { $addToSet: '$session_id' },
+        },
+      },
+      {
+        $project: {
+          site: '$_id.site',
+          page: '$_id.page',
+          cta_id: '$_id.cta_id',
+          cta_label: '$_id.cta_label',
+          clicks: 1,
+          sessions: {
+            $size: {
+              $filter: { input: '$sessions', as: 's', cond: { $and: [{ $ne: ['$$s', null] }, { $ne: ['$$s', ''] }] } },
+            },
+          },
+        },
+      },
+      { $sort: { clicks: -1 } },
+    ]).toArray(),
 
-  const byPage = db.prepare(`
-    SELECT site, page, COUNT(*) AS clicks,
-           COUNT(DISTINCT session_id) AS sessions,
-           COUNT(DISTINCT visitor_id) AS visitors
-    FROM clicks ${clause}
-    GROUP BY site, page
-    ORDER BY clicks DESC
-  `).all(params);
+    collection.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: { $substr: ['$clicked_at', 0, 10] },
+          clicks: { $sum: 1 },
+        },
+      },
+      { $project: { day: '$_id', clicks: 1, _id: 0 } },
+      { $sort: { day: -1 } },
+      { $limit: 30 },
+    ]).toArray(),
+  ]);
 
-  const byCta = db.prepare(`
-    SELECT site, page, cta_id, cta_label, COUNT(*) AS clicks,
-           COUNT(DISTINCT session_id) AS sessions
-    FROM clicks ${clause}
-    GROUP BY site, page, cta_id, cta_label
-    ORDER BY clicks DESC
-  `).all(params);
-
-  const timeline = db.prepare(`
-    SELECT date(clicked_at) AS day, COUNT(*) AS clicks
-    FROM clicks ${clause}
-    GROUP BY date(clicked_at)
-    ORDER BY day DESC
-    LIMIT 30
-  `).all(params);
-
-  return { total, uniqueSessions, uniqueVisitors, byPage, byCta, timeline };
+  const t = totals[0] || { total: 0, uniqueSessions: 0, uniqueVisitors: 0 };
+  return {
+    total: t.total,
+    uniqueSessions: t.uniqueSessions,
+    uniqueVisitors: t.uniqueVisitors,
+    byPage,
+    byCta,
+    timeline,
+  };
 }
 
-function listSites() {
-  return db.prepare(`
-    SELECT site, page, COUNT(*) AS clicks, MAX(clicked_at) AS last_click
-    FROM clicks
-    GROUP BY site, page
-    ORDER BY last_click DESC
-  `).all();
+async function listSites() {
+  return collection.aggregate([
+    {
+      $group: {
+        _id: { site: '$site', page: '$page' },
+        clicks: { $sum: 1 },
+        last_click: { $max: '$clicked_at' },
+      },
+    },
+    {
+      $project: {
+        site: '$_id.site',
+        page: '$_id.page',
+        clicks: 1,
+        last_click: 1,
+        _id: 0,
+      },
+    },
+    { $sort: { last_click: -1 } },
+  ]).toArray();
 }
 
-module.exports = { db, recordClick, listClicks, summaryStats, listSites };
+module.exports = { connectDb, getDbStatus, recordClick, listClicks, summaryStats, listSites };
