@@ -98,6 +98,31 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'TrackerCTA' });
 });
 
+app.get('/api/status', (_req, res) => {
+  const dataDir = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
+  const dbPath = path.join(dataDir, 'clicks.db');
+  let dbBytes = 0;
+  let dbExists = false;
+  try {
+    dbExists = fs.existsSync(dbPath);
+    if (dbExists) dbBytes = fs.statSync(dbPath).size;
+  } catch (_) {}
+
+  const summary = summaryStats();
+
+  res.json({
+    ok: true,
+    dataDir,
+    dbPath,
+    dbExists,
+    dbBytes,
+    persistentDisk: !!process.env.DATA_DIR,
+    totalClicks: summary.total,
+    nodeEnv: process.env.NODE_ENV || 'development',
+    uptimeSec: Math.floor(process.uptime()),
+  });
+});
+
 app.post('/api/track', (req, res) => {
   const body = parseBody(req);
   const row = buildClickRow(body, req);
@@ -150,8 +175,13 @@ app.get('/', (_req, res) => {
 });
 
 app.listen(PORT, () => {
+  const dataDir = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
   console.log(`TrackerCTA running at http://localhost:${PORT}`);
   console.log(`Dashboard: http://localhost:${PORT}/`);
-  console.log(`Test pages: http://localhost:${PORT}/pages/altv2safe.html`);
+  console.log(`Database: ${path.join(dataDir, 'clicks.db')}`);
+  console.log(`Persistent disk: ${process.env.DATA_DIR ? 'yes (' + process.env.DATA_DIR + ')' : 'no — data lost on redeploy'}`);
+  if (fs.existsSync(pagesDir)) {
+    console.log(`Test pages: http://localhost:${PORT}/pages/altv2safe.html`);
+  }
   console.log(`Tracker script: http://localhost:${PORT}/tracker.js`);
 });
