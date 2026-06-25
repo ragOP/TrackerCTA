@@ -12,6 +12,7 @@
       --text: #e8edf5;
       --muted: #8b9cb3;
       --accent: #1f4cdc;
+      --accent-dim: rgba(31,76,220,.18);
       --green: #22c55e;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -20,37 +21,96 @@
       background: var(--bg);
       color: var(--text);
       line-height: 1.5;
-      padding: 24px 16px 48px;
+      padding: 20px 16px 48px;
     }
-    .wrap { max-width: 1100px; margin: 0 auto; }
-    h1 { font-size: 1.5rem; margin-bottom: 4px; }
-    .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 24px; }
-    .filters {
+    .wrap { max-width: 1140px; margin: 0 auto; }
+    .top { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+    h1 { font-size: 1.45rem; }
+    .period-label { color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
+    .period-label strong { color: #93b4ff; }
+
+    .range-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 16px;
+      padding: 6px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    .range-btn {
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: .15s;
+    }
+    .range-btn:hover { color: var(--text); background: rgba(255,255,255,.04); }
+    .range-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .filter-row {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
-      margin-bottom: 20px;
       align-items: end;
+      margin-bottom: 16px;
     }
-    label { display: flex; flex-direction: column; gap: 4px; font-size: 0.75rem; color: var(--muted); }
-    input, select, button {
+    label { display: flex; flex-direction: column; gap: 4px; font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    select, input, button {
       font: inherit;
       border: 1px solid var(--border);
       background: var(--card);
       color: var(--text);
       border-radius: 8px;
       padding: 8px 12px;
+      font-size: 0.88rem;
     }
-    button {
+    select { min-width: 180px; }
+    button.action {
       background: var(--accent);
       border-color: var(--accent);
       cursor: pointer;
       font-weight: 600;
     }
-    button.secondary { background: var(--card); border-color: var(--border); }
+    button.ghost { background: var(--card); border-color: var(--border); cursor: pointer; }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 20px;
+      overflow-x: auto;
+    }
+    .tab {
+      border: none;
+      background: none;
+      color: var(--muted);
+      padding: 12px 18px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      white-space: nowrap;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: #fff; border-bottom-color: var(--accent); }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
     .stats {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       gap: 12px;
       margin-bottom: 20px;
     }
@@ -60,12 +120,12 @@
       border-radius: 12px;
       padding: 16px;
     }
-    .stat b { display: block; font-size: 1.6rem; color: var(--green); }
-    .stat span { font-size: 0.8rem; color: var(--muted); }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
-    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
-    @media (max-width: 1000px) { .grid-3 { grid-template-columns: 1fr; } }
-    @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+    .stat b { display: block; font-size: 1.55rem; color: var(--green); }
+    .stat span { font-size: 0.78rem; color: var(--muted); }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 800px) { .grid-2 { grid-template-columns: 1fr; } }
+
     .card {
       background: var(--card);
       border: 1px solid var(--border);
@@ -73,102 +133,178 @@
       padding: 16px;
       overflow: auto;
     }
-    .card h2 { font-size: 0.95rem; margin-bottom: 12px; }
+    .card h2 { font-size: 0.92rem; margin-bottom: 12px; color: var(--text); }
+    .card-desc { font-size: 0.78rem; color: var(--muted); margin: -8px 0 12px; }
+
     table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
-    th { color: var(--muted); font-weight: 600; }
+    th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: .03em; }
+    tr:last-child td { border-bottom: none; }
+
     .pill {
       display: inline-block;
-      background: rgba(31,76,220,.2);
+      background: var(--accent-dim);
       color: #93b4ff;
       padding: 2px 8px;
       border-radius: 999px;
       font-size: 0.72rem;
       font-family: ui-monospace, monospace;
     }
-    .empty { color: var(--muted); font-size: 0.85rem; padding: 12px 0; }
-    .refresh { margin-left: auto; }
+    .empty { color: var(--muted); font-size: 0.85rem; padding: 20px 0; text-align: center; }
+    .loading { color: var(--muted); padding: 40px; text-align: center; }
+    .bar-wrap { margin-top: 4px; }
+    .bar { height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; }
+    .bar > i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>TrackerCTA</h1>
-    <p class="sub">Central CTA click analytics — any site, any path, per-button breakdown.</p>
-    <p class="sub" style="color:#93b4ff;margin-top:-12px;margin-bottom:20px">
-      Local test: open <a href="/pages/altv2safe.html" style="color:#93b4ff">/pages/altv2safe.html</a> or
-      <a href="/pages/altv2opt.html" style="color:#93b4ff">/pages/altv2opt.html</a> (do not double-click the file — use these URLs).
-    </p>
+    <div class="top">
+      <div>
+        <h1>TrackerCTA</h1>
+        <p class="period-label" id="period-label">Showing: <strong>Today</strong></p>
+      </div>
+      <button type="button" class="ghost" id="btn-refresh">↻ Refresh</button>
+    </div>
 
-    <div class="filters">
+    <div class="range-bar" id="range-bar">
+      <button type="button" class="range-btn active" data-range="today">Today</button>
+      <button type="button" class="range-btn" data-range="yesterday">Yesterday</button>
+      <button type="button" class="range-btn" data-range="7d">Last 7 days</button>
+      <button type="button" class="range-btn" data-range="month">This month</button>
+      <button type="button" class="range-btn" data-range="all">All time</button>
+    </div>
+
+    <div class="filter-row">
       <label>Site
-        <input id="f-site" placeholder="verbraucherfokus-test.de">
+        <select id="f-site"><option value="">All sites</option></select>
       </label>
       <label>Page
-        <input id="f-page" placeholder="altv2opt.html">
+        <select id="f-page"><option value="">All pages</option></select>
       </label>
       <label>Country
-        <input id="f-country" placeholder="DE" maxlength="2" style="width:70px;text-transform:uppercase">
+        <input id="f-country" placeholder="DE" maxlength="2" style="width:72px;text-transform:uppercase">
       </label>
-      <label>From
-        <input id="f-from" type="date">
-      </label>
-      <label>To
-        <input id="f-to" type="date">
-      </label>
-      <button type="button" id="btn-apply">Apply</button>
-      <button type="button" class="secondary" id="btn-clear">Clear</button>
-      <button type="button" class="secondary refresh" id="btn-refresh">Refresh</button>
     </div>
 
-    <div class="stats" id="stats"></div>
-
-    <div class="grid-3">
-      <div class="card">
-        <h2>Clicks by country</h2>
-        <div id="by-country"></div>
-      </div>
-      <div class="card">
-        <h2>Clicks by city</h2>
-        <div id="by-city"></div>
-      </div>
-      <div class="card">
-        <h2>Clicks by CTA</h2>
-        <div id="by-cta"></div>
-      </div>
+    <div class="tabs" id="tabs">
+      <button type="button" class="tab active" data-tab="overview">Overview</button>
+      <button type="button" class="tab" data-tab="ctas">CTA buttons</button>
+      <button type="button" class="tab" data-tab="locations">Locations</button>
+      <button type="button" class="tab" data-tab="activity">Activity log</button>
     </div>
 
-    <div class="grid">
+    <div id="loading" class="loading" style="display:none">Loading…</div>
+
+    <!-- OVERVIEW -->
+    <div class="panel active" id="panel-overview">
+      <div class="stats" id="stats-overview"></div>
       <div class="card">
-        <h2>Clicks by page</h2>
+        <h2>Pages</h2>
+        <p class="card-desc">Clicks per landing page for the selected period.</p>
         <div id="by-page"></div>
       </div>
     </div>
 
-    <div class="card">
-      <h2>Recent clicks</h2>
-      <div id="recent"></div>
+    <!-- CTAs -->
+    <div class="panel" id="panel-ctas">
+      <div class="stats" id="stats-ctas"></div>
+      <div class="card">
+        <h2>CTA performance</h2>
+        <p class="card-desc">Which button got clicked — winner card, sticky bar, etc.</p>
+        <div id="by-cta"></div>
+      </div>
+    </div>
+
+    <!-- LOCATIONS -->
+    <div class="panel" id="panel-locations">
+      <div class="stats" id="stats-locations"></div>
+      <div class="grid-2">
+        <div class="card">
+          <h2>By country</h2>
+          <p class="card-desc">Where visitors clicked from.</p>
+          <div id="by-country"></div>
+        </div>
+        <div class="card">
+          <h2>By city</h2>
+          <p class="card-desc">Top cities in this period.</p>
+          <div id="by-city"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACTIVITY -->
+    <div class="panel" id="panel-activity">
+      <div class="card">
+        <h2>Recent clicks</h2>
+        <p class="card-desc">Latest events — newest first.</p>
+        <div id="recent"></div>
+      </div>
     </div>
   </div>
 
   <script>
     const $ = (id) => document.getElementById(id);
+    let activeRange = 'today';
+    let activeTab = 'overview';
+    let cache = { summary: null, clicks: null };
+
+    const RANGE_LABELS = {
+      today: 'Today',
+      yesterday: 'Yesterday',
+      '7d': 'Last 7 days',
+      month: 'This month',
+      all: 'All time',
+    };
+
+    function startOfDay(d) {
+      const x = new Date(d);
+      x.setHours(0, 0, 0, 0);
+      return x;
+    }
+
+    function endOfDay(d) {
+      const x = new Date(d);
+      x.setHours(23, 59, 59, 999);
+      return x;
+    }
+
+    function getRangeDates(range) {
+      const now = new Date();
+      if (range === 'all') return { from: null, to: null, label: RANGE_LABELS.all };
+
+      if (range === 'today') {
+        return { from: startOfDay(now), to: now, label: RANGE_LABELS.today };
+      }
+      if (range === 'yesterday') {
+        const y = new Date(now);
+        y.setDate(y.getDate() - 1);
+        return { from: startOfDay(y), to: endOfDay(y), label: RANGE_LABELS.yesterday };
+      }
+      if (range === '7d') {
+        const s = new Date(now);
+        s.setDate(s.getDate() - 6);
+        return { from: startOfDay(s), to: now, label: RANGE_LABELS['7d'] };
+      }
+      if (range === 'month') {
+        const s = new Date(now.getFullYear(), now.getMonth(), 1);
+        return { from: startOfDay(s), to: now, label: RANGE_LABELS.month };
+      }
+      return { from: null, to: null, label: RANGE_LABELS.all };
+    }
 
     function qs() {
       const p = new URLSearchParams();
-      const site = $('f-site').value.trim();
-      const page = $('f-page').value.trim();
+      const site = $('f-site').value;
+      const page = $('f-page').value;
       const country = $('f-country').value.trim().toUpperCase();
-      const from = $('f-from').value;
-      const to = $('f-to').value;
+      const { from, to } = getRangeDates(activeRange);
+
       if (site) p.set('site', site);
       if (page) p.set('page', page);
       if (country) p.set('country', country);
-      if (from) p.set('from', new Date(from).toISOString());
-      if (to) {
-        const end = new Date(to);
-        end.setHours(23, 59, 59, 999);
-        p.set('to', end.toISOString());
-      }
+      if (from) p.set('from', from.toISOString());
+      if (to) p.set('to', to.toISOString());
       return p.toString();
     }
 
@@ -186,6 +322,11 @@
       return html;
     }
 
+    function barCell(value, max) {
+      const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+      return value + '<div class="bar-wrap"><div class="bar"><i style="width:' + pct + '%"></i></div></div>';
+    }
+
     function fmtTime(iso) {
       if (!iso) return '—';
       return new Date(iso).toLocaleString();
@@ -199,87 +340,173 @@
       return '—';
     }
 
-    async function load() {
-      const q = qs();
-      const [summary, clicks] = await Promise.all([
-        fetch('/api/stats/summary?' + q).then(r => r.json()),
-        fetch('/api/clicks?' + q + '&limit=50').then(r => r.json()),
-      ]);
-
-      $('stats').innerHTML = [
+    function renderStats(el, summary, extra) {
+      const items = [
         ['Total clicks', summary.total],
-        ['Unique sessions', summary.uniqueSessions],
-        ['Unique visitors', summary.uniqueVisitors],
-        ['CTA buttons tracked', summary.byCta.length],
-      ].map(([label, val]) =>
+        ['Sessions', summary.uniqueSessions],
+        ['Visitors', summary.uniqueVisitors],
+      ];
+      if (extra) items.push(extra);
+      $(el).innerHTML = items.map(([label, val]) =>
         '<div class="stat"><b>' + (val ?? 0) + '</b><span>' + label + '</span></div>'
       ).join('');
+    }
+
+    function renderAll() {
+      const summary = cache.summary;
+      const clicks = cache.clicks;
+      if (!summary) return;
+
+      const { label } = getRangeDates(activeRange);
+      let periodText = label;
+      const site = $('f-site').value;
+      const page = $('f-page').value;
+      if (site) periodText += ' · ' + site;
+      if (page) periodText += ' / ' + page;
+      $('period-label').innerHTML = 'Showing: <strong>' + periodText + '</strong>';
+
+      renderStats('stats-overview', summary);
+      renderStats('stats-ctas', summary, ['CTA buttons', summary.byCta.length]);
+      renderStats('stats-locations', summary, ['Countries', (summary.byCountry || []).length]);
 
       $('by-page').innerHTML = table(
-        ['Site', 'Page', 'Clicks', 'Sessions', 'Visitors'],
-        summary.byPage.map(r => [r.site, r.page, r.clicks, r.sessions, r.visitors]),
-        'No page data yet.'
+        ['Site', 'Page', 'Clicks', 'Sessions'],
+        summary.byPage.map(r => [r.site, r.page, barCell(r.clicks, summary.total), r.sessions]),
+        'No clicks in this period.'
       );
 
-      $('by-country').innerHTML = table(
-        ['Country', 'Code', 'Clicks', 'Sessions'],
-        summary.byCountry.map(r => [
-          r.country || '—',
-          r.country_code || '—',
-          r.clicks,
-          r.sessions,
-        ]),
-        'No country data yet.'
-      );
-
-      $('by-city').innerHTML = table(
-        ['City', 'Country', 'Clicks'],
-        summary.byCity.map(r => [
-          r.city || '—',
-          (r.country || r.country_code || '—'),
-          r.clicks,
-        ]),
-        'No city data yet.'
-      );
-
+      const maxCta = Math.max(1, ...summary.byCta.map(r => r.clicks));
       $('by-cta').innerHTML = table(
-        ['CTA ID', 'Label', 'Page', 'Clicks', 'Sessions'],
+        ['CTA', 'Label', 'Page', 'Clicks', 'Sessions'],
         summary.byCta.map(r => [
           '<span class="pill">' + r.cta_id + '</span>',
-          (r.cta_label || '—').slice(0, 40),
+          (r.cta_label || '—').slice(0, 36),
           r.page,
-          r.clicks,
+          barCell(r.clicks, maxCta),
           r.sessions,
         ]),
-        'No CTA clicks yet.'
+        'No CTA clicks in this period.'
+      );
+
+      const maxCountry = Math.max(1, ...(summary.byCountry || []).map(r => r.clicks));
+      $('by-country').innerHTML = table(
+        ['Country', 'Code', 'Clicks'],
+        (summary.byCountry || []).map(r => [
+          r.country || '—',
+          r.country_code || '—',
+          barCell(r.clicks, maxCountry),
+        ]),
+        'No location data in this period.'
+      );
+
+      const maxCity = Math.max(1, ...(summary.byCity || []).map(r => r.clicks));
+      $('by-city').innerHTML = table(
+        ['City', 'Country', 'Clicks'],
+        (summary.byCity || []).map(r => [
+          r.city || '—',
+          r.country || r.country_code || '—',
+          barCell(r.clicks, maxCity),
+        ]),
+        'No city data in this period.'
       );
 
       $('recent').innerHTML = table(
-        ['Time', 'Location', 'Site / Page', 'CTA', 'Label'],
-        clicks.rows.map(r => [
+        ['Time', 'Location', 'Page', 'CTA', 'Label'],
+        (clicks?.rows || []).map(r => [
           fmtTime(r.clicked_at),
-          fmtLocation(r) + (r.timezone ? '<br><small>' + r.timezone + '</small>' : ''),
-          r.site + '<br><small>' + r.page + '</small>',
+          fmtLocation(r),
+          '<small>' + r.page + '</small>',
           '<span class="pill">' + r.cta_id + '</span>',
-          (r.cta_label || '—').slice(0, 50),
+          (r.cta_label || '—').slice(0, 40),
         ]),
-        'No clicks recorded yet. Open a tracked page and click a CTA.'
+        'No clicks in this period.'
       );
     }
 
-    $('btn-apply').addEventListener('click', load);
-    $('btn-refresh').addEventListener('click', load);
-    $('btn-clear').addEventListener('click', () => {
-      $('f-site').value = '';
-      $('f-page').value = '';
-      $('f-country').value = '';
-      $('f-from').value = '';
-      $('f-to').value = '';
-      load();
+    async function load() {
+      $('loading').style.display = 'block';
+      try {
+        const q = qs();
+        const [summary, clicks] = await Promise.all([
+          fetch('/api/stats/summary?' + q).then(r => r.json()),
+          fetch('/api/clicks?' + q + '&limit=100').then(r => r.json()),
+        ]);
+        cache.summary = summary;
+        cache.clicks = clicks;
+        renderAll();
+      } catch (e) {
+        console.error(e);
+      } finally {
+        $('loading').style.display = 'none';
+      }
+    }
+
+    async function loadSiteOptions() {
+      try {
+        const sites = await fetch('/api/sites').then(r => r.json());
+        const siteSet = new Set();
+        const pageMap = {};
+
+        sites.forEach(s => {
+          siteSet.add(s.site);
+          if (!pageMap[s.site]) pageMap[s.site] = [];
+          pageMap[s.site].push(s.page);
+        });
+
+        const siteSel = $('f-site');
+        [...siteSet].sort().forEach(site => {
+          const opt = document.createElement('option');
+          opt.value = site;
+          opt.textContent = site;
+          siteSel.appendChild(opt);
+        });
+
+        function updatePages() {
+          const selectedSite = $('f-site').value;
+          const pageSel = $('f-page');
+          pageSel.innerHTML = '<option value="">All pages</option>';
+          const pages = selectedSite ? (pageMap[selectedSite] || []) : [...new Set(sites.map(s => s.page))];
+          [...new Set(pages)].sort().forEach(page => {
+            const opt = document.createElement('option');
+            opt.value = page;
+            opt.textContent = page;
+            pageSel.appendChild(opt);
+          });
+        }
+
+        siteSel.addEventListener('change', () => { updatePages(); load(); });
+        updatePages();
+      } catch (e) {
+        console.error('sites load failed', e);
+      }
+    }
+
+    document.querySelectorAll('.range-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        activeRange = btn.dataset.range;
+        document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        load();
+      });
     });
 
-    load();
-    setInterval(load, 15000);
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        activeTab = tab.dataset.tab;
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        $('panel-' + activeTab).classList.add('active');
+      });
+    });
+
+    $('f-page').addEventListener('change', load);
+    $('f-country').addEventListener('change', load);
+    $('f-country').addEventListener('keyup', (e) => { if (e.key === 'Enter') load(); });
+    $('btn-refresh').addEventListener('click', load);
+
+    loadSiteOptions().then(load);
+    setInterval(load, 20000);
   </script>
 </body>
 </html>
